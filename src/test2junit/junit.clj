@@ -71,6 +71,8 @@
 (def ^:dynamic *var-context*)
 (def ^:dynamic *depth*)
 (def ^:dynamic *silent* false)
+(def ^:dynamic *test-var*)
+(def ^:dynamic *test-dir*)
 
 (defn indent
   []
@@ -128,8 +130,9 @@
   (finish-element tag true))
 
 (defn suite-attrs
-  [package classname]
+  [package classname file]
   (let [attrs {:name (str package "." classname)
+               :file (str *test-dir* file)
                :errors (str (:error @t/*report-counters*))
                :failures (str (:fail @t/*report-counters*))
                :tests (str (:test @t/*report-counters*))
@@ -138,9 +141,9 @@
     attrs))
 
 (defn start-suite
-  [name]
+  [name file]
   (let [[package classname] (package-class name)]
-    (start-element 'testsuite true (suite-attrs package classname))))
+    (start-element 'testsuite true (suite-attrs package classname file))))
 
 (defn finish-suite
   []
@@ -201,7 +204,7 @@
       (println "Finished tests in:" (ns-name (:ns m)))))
   (set! *depth* (dec *depth*))
   (t/with-test-out
-    (start-suite (name (ns-name (:ns m))))
+    (start-suite (name (ns-name (:ns m))) (:file (meta *test-var*)))
     (print @testsuite-temp-string)))
 
 (defn add-properties
@@ -233,6 +236,7 @@
   (when-not *silent*
     (binding [*out* out-wrtr]
       (println "  Finished test:" (:var m))))
+  (set! *test-var* (:var m))
   (dosync (alter testsuite-temp-string str
     (with-out-str
       (let [var (:var m)]
@@ -286,7 +290,8 @@
   [& body]
   `(binding [t/report junit-report
              *var-context* (list)
-             *depth* 0]
+             *depth* 0
+             *test-var* nil]
      (t/with-test-out
        (println "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"))
      (let [result# ~@body]
